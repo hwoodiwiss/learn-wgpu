@@ -7,14 +7,13 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-
 fn rgb_to_normalized(r: u8, g: u8, b: u8) -> wgpu::Color {
     // Wish this could be const, but cant do fp arithmatic in const fn
     wgpu::Color {
         r: r as f64 / 255f64,
         g: g as f64 / 255f64,
         b: b as f64 / 255f64,
-        a: 1.0
+        a: 1.0,
     }
 }
 
@@ -26,7 +25,8 @@ struct State {
     swap_chain: wgpu::SwapChain,
     size: winit::dpi::PhysicalSize<u32>,
     bg_color: wgpu::Color,
-    render_pipeline: wgpu::RenderPipeline,
+    render_pipelines: Vec<wgpu::RenderPipeline>,
+    pipeline_index: usize,
 }
 
 impl State {
@@ -69,11 +69,6 @@ impl State {
         // Cornflour blue, because I 'member XNA
         let bg_color = rgb_to_normalized(100, 149, 237);
 
-        let vs_module =
-            device.create_shader_module(&include_spirv!("shaders/basic.vert.spv"));
-        let fs_module =
-            device.create_shader_module(&include_spirv!("shaders/basic.frag.spv"));
-
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -81,16 +76,19 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let basic_vs_module = device.create_shader_module(&include_spirv!("shaders/basic.vert.spv"));
+        let basic_fs_module = device.create_shader_module(&include_spirv!("shaders/basic.frag.spv"));
+
+        let basic_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &vs_module,
+                module: &basic_vs_module,
                 entry_point: "main",
                 buffers: &[],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &fs_module,
+                module: &basic_fs_module,
                 entry_point: "main",
                 targets: &[wgpu::ColorTargetState {
                     format: sc_desc.format,
@@ -118,6 +116,50 @@ impl State {
             },
         });
 
+
+        let challenge_vs_module = device.create_shader_module(&include_spirv!("shaders/challenge.vert.spv"));
+        let challenge_fs_module = device.create_shader_module(&include_spirv!("shaders/challenge.frag.spv"));
+
+        let challenge_render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &challenge_vs_module,
+                entry_point: "main",
+                buffers: &[],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &challenge_fs_module,
+                entry_point: "main",
+                targets: &[wgpu::ColorTargetState {
+                    format: sc_desc.format,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent::REPLACE,
+                        alpha: wgpu::BlendComponent::REPLACE,
+                    }),
+                    write_mask: wgpu::ColorWrite::ALL,
+                }],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                clamp_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+        });
+
+        let render_pipelines = vec![basic_render_pipeline, challenge_render_pipeline];
+        let pipeline_index = 0;
+
         Self {
             surface,
             device,
@@ -126,7 +168,8 @@ impl State {
             swap_chain,
             size,
             bg_color,
-            render_pipeline,
+            render_pipelines,
+            pipeline_index,
         }
     }
 
@@ -137,8 +180,25 @@ impl State {
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
     }
 
-    fn input(&mut self, _event: &WindowEvent) -> bool {
-        false
+    fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput { input, .. } => match input {
+                KeyboardInput {
+                    state: ElementState::Pressed,
+                    virtual_keycode: Some(VirtualKeyCode::Space),
+                    ..
+                } => {
+                    if self.pipeline_index != self.render_pipelines.len() - 1 {
+                        self.pipeline_index += 1;
+                    } else {
+                        self.pipeline_index = 0;
+                    }
+                    true
+                },
+                _ => false,
+            },
+            _ => false,
+        }
     }
 
     fn update(&mut self) {}
@@ -166,7 +226,7 @@ impl State {
                 depth_stencil_attachment: None,
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_pipeline(&self.render_pipelines[self.pipeline_index]);
             render_pass.draw(0..3, 0..1);
         }
 

@@ -1,7 +1,7 @@
 #version 450
 
-layout(location=0) out vec4 o_colour;
+layout(location=0) out vec4 f_color;
 
 void main() {
-	o_colour = vec4(0.603, 0.807, 0.921, 1.0);
+	f_color = vec4(0.603, 0.807, 0.921, 1.0);
 }
