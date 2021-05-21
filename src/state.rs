@@ -1,10 +1,14 @@
 use wgpu::IndexFormat;
 use wgpu::include_spirv;
 use wgpu::util::DeviceExt;
+use winit::event::ElementState;
+use winit::event::KeyboardInput;
+use winit::event::VirtualKeyCode;
 use winit::{event::WindowEvent, window::Window};
 
 use crate::vertex::PENTAGON;
 use crate::vertex::PENTAGON_INDICES;
+use crate::vertex::TRIANGLE_INDICES;
 use crate::vertex::{Vertex, TRIANGLE};
 fn rgb_to_normalized(r: u8, g: u8, b: u8) -> wgpu::Color {
     // Wish this could be const, but cant do fp arithmatic in const fn
@@ -16,6 +20,24 @@ fn rgb_to_normalized(r: u8, g: u8, b: u8) -> wgpu::Color {
     }
 }
 
+fn create_mesh_buffers(device: &wgpu::Device, vertices: &[Vertex], indices: &[u16]) -> (wgpu::Buffer, wgpu::Buffer, u32) {
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(vertices),
+            usage: wgpu::BufferUsage::VERTEX,
+        });
+
+        let num_indices = indices.len() as u32;
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor{
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(indices),
+            usage: wgpu::BufferUsage::INDEX,
+        });
+
+        (vertex_buffer, index_buffer, num_indices)
+    }
+
 pub struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -25,9 +47,10 @@ pub struct State {
     pub size: winit::dpi::PhysicalSize<u32>,
     bg_color: wgpu::Color,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    vertex_buffers: Vec<wgpu::Buffer>,
+    index_buffers: Vec<wgpu::Buffer>,
+    num_indices_list: Vec<u32>,
+    mesh_index: usize,
 }
 
 impl State {
@@ -77,20 +100,27 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(PENTAGON),
-            usage: wgpu::BufferUsage::VERTEX,
-        });
+        let num_vertices = u16::max_value();
+        let angle = std::f32::consts::PI * 2.0 / num_vertices as f32;
+        let challenge_verts = (0..num_vertices)
+            .map(|i| {
+                let theta = angle * i as f32;
+                Vertex {
+                    position: [0.5 * theta.cos(), -0.5 * theta.sin(), 0.0],
+                    colour: [(1.0 + theta.cos()) / 2.0, (1.0 + theta.sin()) / 2.0, 1.0, 1.0],
+                }
+            })
+            .collect::<Vec<_>>();
 
-        let num_indices = PENTAGON_INDICES.len() as u32;
+        let num_triangles = num_vertices - 2;
+        let challenge_indices = (1u16..num_triangles + 1)
+            .into_iter()
+            .flat_map(|i| vec![i + 1, i, 0])
+            .collect::<Vec<_>>();
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor{
-            label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(PENTAGON_INDICES),
-            usage: wgpu::BufferUsage::INDEX,
-        });
-
+        let (triangle_vertex_buffer, triangle_index_buffer, triangle_num_indices) = create_mesh_buffers(&device, TRIANGLE, TRIANGLE_INDICES);
+        let (pentagon_vertex_buffer, pentagon_index_buffer, pentagon_num_indices) = create_mesh_buffers(&device, PENTAGON, PENTAGON_INDICES);
+        let (challenge_vertex_buffer, challenge_index_buffer, challenge_num_indices) = create_mesh_buffers(&device, &challenge_verts, &challenge_indices);
         let vs_module = device.create_shader_module(&include_spirv!("shaders/basic.vert.spv"));
         let fs_module = device.create_shader_module(&include_spirv!("shaders/basic.frag.spv"));
 
@@ -140,9 +170,10 @@ impl State {
             size,
             bg_color,
             render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            num_indices,
+            vertex_buffers: vec![triangle_vertex_buffer, pentagon_vertex_buffer, challenge_vertex_buffer],
+            index_buffers: vec![triangle_index_buffer, pentagon_index_buffer, challenge_index_buffer],
+            num_indices_list: vec![triangle_num_indices, pentagon_num_indices, challenge_num_indices],
+            mesh_index: 0,
         }
     }
 
@@ -153,8 +184,28 @@ impl State {
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
     }
 
-    pub fn input(&mut self, _event: &WindowEvent) -> bool {
-        false
+    pub fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput { input, .. } => match input {
+                KeyboardInput {
+                    state: ElementState::Pressed,
+                    virtual_keycode: Some(VirtualKeyCode::Space),
+                    ..
+                } => {
+
+                    if self.mesh_index < self.vertex_buffers.len() - 1 {
+                        self.mesh_index += 1;
+                    } else {
+                        self.mesh_index = 0;
+                    }
+
+                    true
+                }
+                _ => false
+
+            }
+            _ => false
+        }
     }
 
     pub fn update(&mut self) {}
@@ -183,9 +234,9 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            render_pass.set_vertex_buffer(0, self.vertex_buffers[self.mesh_index].slice(..));
+            render_pass.set_index_buffer(self.index_buffers[self.mesh_index].slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices_list[self.mesh_index], 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
