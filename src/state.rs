@@ -1,14 +1,15 @@
-use winit::{event::WindowEvent, window::{Window}};
 use wgpu::include_spirv;
+use wgpu::util::DeviceExt;
+use winit::{event::WindowEvent, window::Window};
 
-
+use crate::vertex::{Vertex, TRIANGLE};
 fn rgb_to_normalized(r: u8, g: u8, b: u8) -> wgpu::Color {
     // Wish this could be const, but cant do fp arithmatic in const fn
     wgpu::Color {
         r: r as f64 / 255f64,
         g: g as f64 / 255f64,
         b: b as f64 / 255f64,
-        a: 1.0
+        a: 1.0,
     }
 }
 
@@ -21,6 +22,8 @@ pub struct State {
     pub size: winit::dpi::PhysicalSize<u32>,
     bg_color: wgpu::Color,
     render_pipeline: wgpu::RenderPipeline,
+    vertex_buffer: wgpu::Buffer,
+    num_vertices: u32,
 }
 
 impl State {
@@ -63,11 +66,6 @@ impl State {
         // Cornflour blue, because I 'member XNA
         let bg_color = rgb_to_normalized(100, 149, 237);
 
-        let vs_module =
-            device.create_shader_module(&include_spirv!("shaders/basic.vert.spv"));
-        let fs_module =
-            device.create_shader_module(&include_spirv!("shaders/basic.frag.spv"));
-
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
@@ -75,13 +73,25 @@ impl State {
                 push_constant_ranges: &[],
             });
 
+        let num_vertices = TRIANGLE.len() as u32;
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(TRIANGLE),
+            usage: wgpu::BufferUsage::VERTEX,
+        });
+
+
+        let vs_module = device.create_shader_module(&include_spirv!("shaders/basic.vert.spv"));
+        let fs_module = device.create_shader_module(&include_spirv!("shaders/basic.frag.spv"));
+
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &vs_module,
                 entry_point: "main",
-                buffers: &[],
+                buffers: &[Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &fs_module,
@@ -121,6 +131,8 @@ impl State {
             size,
             bg_color,
             render_pipeline,
+            vertex_buffer,
+            num_vertices,
         }
     }
 
@@ -161,7 +173,8 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.draw(0..3, 0..1);
+            render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            render_pass.draw(0..self.num_vertices, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

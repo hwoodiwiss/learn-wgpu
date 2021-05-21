@@ -7,8 +7,9 @@ use winit::{
 };
 
 mod state;
-use state::State;
+mod vertex;
 
+use state::State;
 
 fn main() {
     env_logger::init();
