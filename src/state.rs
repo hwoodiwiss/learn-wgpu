@@ -1,7 +1,10 @@
+use wgpu::IndexFormat;
 use wgpu::include_spirv;
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, window::Window};
 
+use crate::vertex::PENTAGON;
+use crate::vertex::PENTAGON_INDICES;
 use crate::vertex::{Vertex, TRIANGLE};
 fn rgb_to_normalized(r: u8, g: u8, b: u8) -> wgpu::Color {
     // Wish this could be const, but cant do fp arithmatic in const fn
@@ -23,7 +26,8 @@ pub struct State {
     bg_color: wgpu::Color,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
+    index_buffer: wgpu::Buffer,
+    num_indices: u32,
 }
 
 impl State {
@@ -73,14 +77,19 @@ impl State {
                 push_constant_ranges: &[],
             });
 
-        let num_vertices = TRIANGLE.len() as u32;
-
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(TRIANGLE),
+            contents: bytemuck::cast_slice(PENTAGON),
             usage: wgpu::BufferUsage::VERTEX,
         });
 
+        let num_indices = PENTAGON_INDICES.len() as u32;
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor{
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(PENTAGON_INDICES),
+            usage: wgpu::BufferUsage::INDEX,
+        });
 
         let vs_module = device.create_shader_module(&include_spirv!("shaders/basic.vert.spv"));
         let fs_module = device.create_shader_module(&include_spirv!("shaders/basic.frag.spv"));
@@ -132,7 +141,8 @@ impl State {
             bg_color,
             render_pipeline,
             vertex_buffer,
-            num_vertices,
+            index_buffer,
+            num_indices,
         }
     }
 
@@ -174,7 +184,8 @@ impl State {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..self.num_vertices, 0..1);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
