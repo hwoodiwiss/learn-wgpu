@@ -1,11 +1,12 @@
 #version 450
 
 layout(location=0) in vec3 position;
-layout(location=1) in vec4 colour;
+layout(location=1) in vec2 tex_coords;
 
 layout(location=0) out vec4 o_colour;
+layout(location=1) out vec2 o_tex_coords;
 
 void main() {
-	o_colour = colour;
+	o_tex_coords = tex_coords;
 	gl_Position = vec4(position, 1.0);
 }
