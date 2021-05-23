@@ -3,8 +3,7 @@
 layout(location=0) in vec3 position;
 layout(location=1) in vec2 tex_coords;
 
-layout(location=0) out vec4 o_colour;
-layout(location=1) out vec2 o_tex_coords;
+layout(location=0) out vec2 o_tex_coords;
 
 void main() {
 	o_tex_coords = tex_coords;
