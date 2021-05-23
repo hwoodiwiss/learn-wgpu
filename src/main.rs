@@ -8,6 +8,7 @@ use winit::{
 
 mod state;
 mod vertex;
+mod texture;
 
 use state::State;
 
