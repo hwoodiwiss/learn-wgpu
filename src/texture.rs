@@ -50,7 +50,7 @@ impl Texture {
         texture_size
         );
 
-        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -62,10 +62,9 @@ impl Texture {
             ..Default::default()
         });
 		Ok(Texture {
-		    texture: texture,
-		    view: texture_view,
-		    sampler: sampler,
-		    
+		    texture,
+		    view,
+		    sampler,
 		})
 	}
 }
