@@ -1,6 +1,6 @@
 use wgpu::IndexFormat;
 use wgpu::util::DeviceExt;
-use winit::{event::WindowEvent, window::Window};
+use winit::{window::Window, event::*};
 
 use crate::vertex::{Vertex, PENTAGON, PENTAGON_INDICES};
 use crate::texture::Texture;
@@ -15,6 +15,23 @@ fn rgb_to_normalized(r: u8, g: u8, b: u8) -> wgpu::Color {
     }
 }
 
+fn create_texture_binding(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, texture: &Texture) -> wgpu::BindGroup {
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("Diffuse Bind Group"),
+        layout: &layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&texture.view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::Sampler(&texture.sampler),
+            }
+        ],
+    })
+}
+
 pub struct State {
     surface: wgpu::Surface,
     device: wgpu::Device,
@@ -27,8 +44,8 @@ pub struct State {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     num_indices: u32,
-    diffuse_bind_group: wgpu::BindGroup,
-    diffuse_texture: Texture,
+    diffuse_bind_groups: Vec<wgpu::BindGroup>,
+    texture_index: usize,
 }
 
 impl State {
@@ -68,8 +85,11 @@ impl State {
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
-        let diffuse_bytes = include_bytes!("resources/happy-tree.png");
-        let diffuse_texture = Texture::from_bytes(&device, &queue, diffuse_bytes, "Tree Texture").expect("Failed to create texture");
+        let tree_bytes = include_bytes!("resources/happy-tree.png");
+        let tree_texture = Texture::from_bytes(&device, &queue, tree_bytes, "Tree Texture").expect("Failed to create texture");
+
+        let rainbow_bytes = include_bytes!("resources/pentagon.png");
+        let rainbow_texture = Texture::from_bytes(&device, &queue, rainbow_bytes, "Rainbow Texture").expect("Failed to create texture");
 
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Texure bind group layout"),
@@ -96,20 +116,8 @@ impl State {
             ],
         });
 
-        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Diffuse Bind Group"),
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&diffuse_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&diffuse_texture.sampler),
-                }
-            ],
-        });
+        let tree_bind_group = create_texture_binding(&device, &texture_bind_group_layout, &tree_texture);
+        let rainbow_bind_group = create_texture_binding(&device, &texture_bind_group_layout, &rainbow_texture);
 
         // Cornflour blue, because I 'member XNA
         let bg_color = rgb_to_normalized(100, 149, 237);
@@ -190,8 +198,8 @@ impl State {
             vertex_buffer,
             index_buffer,
             num_indices,
-            diffuse_bind_group,
-            diffuse_texture,
+            diffuse_bind_groups: vec![tree_bind_group, rainbow_bind_group],
+            texture_index: 0,
         }
     }
 
@@ -202,8 +210,25 @@ impl State {
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
     }
 
-    pub fn input(&mut self, _event: &WindowEvent) -> bool {
-        false
+    pub fn input(&mut self, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::KeyboardInput { input, .. } => match input {
+                KeyboardInput {
+                    state: ElementState::Pressed,
+                    virtual_keycode: Some(VirtualKeyCode::Space),
+                    ..
+                } => {
+                    self.texture_index = if self.texture_index < self.diffuse_bind_groups.len() - 1 {
+                        self.texture_index + 1
+                    } else {
+                        0
+                    };
+                    true
+                },
+                _ => false
+            },
+            _ => false
+        }
     }
 
     pub fn update(&mut self) {}
@@ -232,7 +257,7 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            render_pass.set_bind_group(0, &self.diffuse_bind_groups[self.texture_index], &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
