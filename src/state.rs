@@ -1,5 +1,4 @@
 use wgpu::IndexFormat;
-use wgpu::include_spirv;
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, window::Window};
 
@@ -136,19 +135,22 @@ impl State {
             usage: wgpu::BufferUsage::INDEX,
         });
 
-        let vs_module = device.create_shader_module(&include_spirv!("shaders/basic.vert.spv"));
-        let fs_module = device.create_shader_module(&include_spirv!("shaders/basic.frag.spv"));
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor{
+            label: Some("Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+            flags: wgpu::ShaderFlags::all(),
+        });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &vs_module,
+                module: &shader,
                 entry_point: "main",
                 buffers: &[Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &fs_module,
+                module: &shader,
                 entry_point: "main",
                 targets: &[wgpu::ColorTargetState {
                     format: sc_desc.format,
