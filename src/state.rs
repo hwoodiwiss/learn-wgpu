@@ -4,6 +4,7 @@ use winit::{event::WindowEvent, window::Window};
 
 use crate::vertex::{Vertex, PENTAGON, PENTAGON_INDICES};
 use crate::texture::Texture;
+use crate::camera::Camera;
 
 fn rgb_to_normalized(r: u8, g: u8, b: u8) -> wgpu::Color {
     // Wish this could be const, but cant do fp arithmatic in const fn
@@ -28,7 +29,7 @@ pub struct State {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     diffuse_bind_group: wgpu::BindGroup,
-    diffuse_texture: Texture,
+    camera: Camera,
 }
 
 impl State {
@@ -111,6 +112,16 @@ impl State {
             ],
         });
 
+        let camera = Camera {
+            eye: (0.0, 1.0, 2.0).into(),
+            target: (0.0, 0.0, 0.0).into(),
+            up: (0.0, 1.0, 0.0).into(),
+            aspect: sc_desc.width as f32 / sc_desc.height as f32,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+        };
+
         // Cornflour blue, because I 'member XNA
         let bg_color = rgb_to_normalized(100, 149, 237);
 
@@ -191,7 +202,7 @@ impl State {
             index_buffer,
             num_indices,
             diffuse_bind_group,
-            diffuse_texture,
+            camera,
         }
     }
 
