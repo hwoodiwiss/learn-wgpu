@@ -1,3 +1,4 @@
+use crate::uniform::Uniforms;
 use wgpu::IndexFormat;
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, window::Window};
@@ -30,6 +31,9 @@ pub struct State {
     num_indices: u32,
     diffuse_bind_group: wgpu::BindGroup,
     camera: Camera,
+    uniforms: Uniforms,
+    uniform_buffer: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
 }
 
 impl State {
@@ -122,13 +126,52 @@ impl State {
             zfar: 100.0,
         };
 
+        let mut uniforms = Uniforms::new();
+        uniforms.update_view_proj(&camera);
+
+        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Uniform Buffer"),
+            contents: bytemuck::bytes_of(&uniforms),
+            usage: wgpu::BufferUsage::UNIFORM,
+        });
+
+        let uniform_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Uniform Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStage::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }
+            ],
+        });
+
+        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor{
+            label: Some("Uniform Bind Group"),
+            layout: &uniform_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: uniform_buffer.as_entire_binding(),
+                }
+            ],
+        });
+
         // Cornflour blue, because I 'member XNA
         let bg_color = rgb_to_normalized(100, 149, 237);
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout],
+                bind_group_layouts: &[
+                    &texture_bind_group_layout,
+                    &uniform_bind_group_layout
+                    ],
                 push_constant_ranges: &[],
             });
 
@@ -148,7 +191,7 @@ impl State {
 
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor{
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/basic.wgsl").into()),
             flags: wgpu::ShaderFlags::all(),
         });
 
@@ -203,6 +246,9 @@ impl State {
             num_indices,
             diffuse_bind_group,
             camera,
+            uniforms,
+            uniform_buffer,
+            uniform_bind_group,
         }
     }
 
@@ -243,9 +289,13 @@ impl State {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);
+
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
+
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
         }
 

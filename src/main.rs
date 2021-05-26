@@ -10,6 +10,7 @@ mod state;
 mod vertex;
 mod texture;
 mod camera;
+mod uniform;
 
 use state::State;
 
