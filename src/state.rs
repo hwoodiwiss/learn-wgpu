@@ -37,6 +37,7 @@ pub struct State {
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     camera_controller: CameraController,
+    rot_angle: f32,
 }
 
 impl State {
@@ -183,7 +184,7 @@ impl State {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(PENTAGON),
-            usage: wgpu::BufferUsage::VERTEX,
+            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
         });
 
         let num_indices = PENTAGON_INDICES.len() as u32;
@@ -224,7 +225,7 @@ impl State {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
+                cull_mode: None,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 clamp_depth: false,
                 conservative: false,
@@ -236,6 +237,7 @@ impl State {
                 alpha_to_coverage_enabled: false,
             },
         });
+
 
         Self {
             surface,
@@ -255,6 +257,7 @@ impl State {
             uniform_buffer,
             uniform_bind_group,
             camera_controller,
+            rot_angle: 0.0,
         }
     }
 
@@ -273,6 +276,19 @@ impl State {
         self.camera_controller.update_camera(&mut self.camera);
         self.uniforms.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[self.uniforms]));
+
+        self.rot_angle += 0.5;
+        let rotation = cgmath::Matrix3::from_angle_z(cgmath::Deg(self.rot_angle));
+        let mut vertices = Vec::new();
+        for vert in PENTAGON.iter() {
+            let new_vert = Vertex {
+                position: (rotation * cgmath::Vector3::from(vert.position)).into(),
+                tex_coords: vert.tex_coords,
+            };
+            vertices.push(new_vert);
+        }
+        
+        self.queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(vertices.as_slice()))
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SwapChainError> {
