@@ -11,6 +11,7 @@ mod vertex;
 mod texture;
 mod camera;
 mod uniform;
+mod instance;
 
 use state::State;
 
