@@ -4,7 +4,7 @@ use crate::instance::InstanceRaw;
 use crate::uniform::Uniforms;
 use cgmath::*;
 use wgpu::IndexFormat;
-use wgpu::Queue;
+
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, window::Window};
 
@@ -46,6 +46,7 @@ pub struct State {
     camera_controller: CameraController,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
+    rotation: f32,
 }
 
 impl State {
@@ -225,7 +226,7 @@ impl State {
         let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor{
             label: Some("Instance Buffer"),
             contents: bytemuck::cast_slice(instance_data.as_slice()),
-            usage: wgpu::BufferUsage::VERTEX,
+            usage: wgpu::BufferUsage::VERTEX | wgpu::BufferUsage::COPY_DST,
         });
 
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor{
@@ -291,6 +292,7 @@ impl State {
             camera_controller,
             instances,
             instance_buffer,
+            rotation: 0.0,
         }
     }
 
@@ -309,6 +311,18 @@ impl State {
         self.camera_controller.update_camera(&mut self.camera);
         self.uniforms.update_view_proj(&self.camera);
         self.queue.write_buffer(&self.uniform_buffer, 0, bytemuck::cast_slice(&[self.uniforms]));
+
+        self.rotation += 0.5;
+        self.instances = self.instances.iter().map(|inst| {
+            Instance {
+                position: inst.position,
+                rotation: cgmath::Quaternion::from_axis_angle(inst.position.clone().normalize(), cgmath::Deg(self.rotation)),
+            }
+        }).collect::<Vec<_>>();
+
+        let instance_data = self.instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+
+        self.queue.write_buffer(&self.instance_buffer, 0, bytemuck::cast_slice(instance_data.as_slice()));
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SwapChainError> {
