@@ -47,6 +47,7 @@ pub struct State {
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
+    depth_bind_group: wgpu::BindGroup,
 }
 
 impl State {
@@ -180,16 +181,6 @@ impl State {
         // Cornflour blue, because I 'member XNA
         let bg_color = rgb_to_normalized(100, 149, 237);
 
-        let render_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[
-                    &texture_bind_group_layout,
-                    &uniform_bind_group_layout
-                    ],
-                push_constant_ranges: &[],
-            });
-
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             contents: bytemuck::cast_slice(PENTAGON),
@@ -236,6 +227,58 @@ impl State {
         });
 
         let depth_texture = Texture::create_depth_texture(&device, &sc_desc, "Depth Texture");
+
+        let depth_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Depth bind group layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler {
+                        filtering: true,
+                        comparison: true,
+                    },
+                    count: None,
+                }
+            ],
+        });
+
+        let depth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Depth Bind Group"),
+            layout: &depth_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&depth_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&depth_texture.sampler),
+                }
+            ],
+        });
+
+        let render_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[
+                    &texture_bind_group_layout,
+                    &uniform_bind_group_layout,
+                    &depth_bind_group_layout,
+                    ],
+                push_constant_ranges: &[],
+            });
+
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
@@ -301,6 +344,7 @@ impl State {
             instances,
             instance_buffer,
             depth_texture,
+            depth_bind_group,
         }
     }
 
@@ -358,6 +402,7 @@ impl State {
 
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);
+            render_pass.set_bind_group(2, &self.depth_bind_group, &[]);
 
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
