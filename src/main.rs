@@ -12,6 +12,7 @@ mod texture;
 mod camera;
 mod uniform;
 mod instance;
+mod model;
 
 use state::State;
 

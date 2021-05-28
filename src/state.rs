@@ -1,16 +1,18 @@
-use crate::instance::Instance;
+use crate::{instance::Instance};
 use crate::camera::CameraController;
 use crate::instance::InstanceRaw;
 use crate::uniform::Uniforms;
 use cgmath::*;
 use wgpu::IndexFormat;
-use wgpu::Queue;
+
 use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, window::Window};
 
 use crate::vertex::{Vertex, PENTAGON, PENTAGON_INDICES};
 use crate::texture::Texture;
 use crate::camera::Camera;
+use crate::model::ModelVertex;
+use crate::model::{DrawModel, Model};
 
 fn rgb_to_normalized(r: u8, g: u8, b: u8) -> wgpu::Color {
     // Wish this could be const, but cant do fp arithmatic in const fn
@@ -47,6 +49,7 @@ pub struct State {
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
     depth_texture: Texture,
+    obj_model: Model,
 }
 
 impl State {
@@ -86,7 +89,7 @@ impl State {
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
-        let diffuse_bytes = include_bytes!("resources/happy-tree.png");
+        let diffuse_bytes = include_bytes!("../resources/happy-tree.png");
         let diffuse_texture = Texture::from_bytes(&device, &queue, diffuse_bytes, "Tree Texture").expect("Failed to create texture");
 
         let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -204,8 +207,15 @@ impl State {
             usage: wgpu::BufferUsage::INDEX,
         });
 
+        let resources_dir = std::path::Path::new(env!("OUT_DIR")).join("resources");
+        let obj_model = Model::load(&device, &queue, &&texture_bind_group_layout, resources_dir.join("cube/cube.obj")).unwrap();
+
+        const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..INSTANCES_PER_ROW).flat_map(|z| {
             (0..INSTANCES_PER_ROW).map(move |x| {
+                let x = SPACE_BETWEEN * (x as f32 - INSTANCES_PER_ROW as f32 / 2.0);
+                let z = SPACE_BETWEEN * (z as f32 - INSTANCES_PER_ROW as f32 / 2.0);
+
                 let position = cgmath::Vector3 { x: x as f32, y: 0.0, z: z as f32 } - INSTANCE_DISPLACEMENT;
 
                 let rotation = if position.is_zero() {
@@ -243,7 +253,7 @@ impl State {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "main",
-                buffers: &[Vertex::desc(), InstanceRaw::desc()],
+                buffers: &[ModelVertex::desc(), InstanceRaw::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -301,6 +311,7 @@ impl State {
             instances,
             instance_buffer,
             depth_texture,
+            obj_model,
         }
     }
 
@@ -364,8 +375,9 @@ impl State {
 
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
 
-
-            render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
+            let mesh = &self.obj_model.meshes[0];
+            let material = &self.obj_model.materials[mesh.material];
+            render_pass.draw_mesh_instanced(mesh, material, 0..self.instances.len() as u32, &self.uniform_bind_group);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

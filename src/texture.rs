@@ -1,5 +1,8 @@
 use std::default;
 
+use std::path::Path;
+
+
 use image::GenericImageView;
 use anyhow::*;
 
@@ -59,8 +62,16 @@ impl Texture {
 		Self::from_image(device, queue, &img, Some(label))
 	}
 
+    pub fn load<P: AsRef<Path>>(device: &wgpu::Device, queue: &wgpu::Queue, path: P) -> Result<Self> {
+        let path_copy = path.as_ref().to_path_buf();
+        let label = path_copy.to_str();
+
+        let img = image::open(path)?;
+        Self::from_image(device, queue, &img, label)
+    }
+
 	pub fn from_image(device: &wgpu::Device, queue: &wgpu::Queue, img: &image::DynamicImage, label: Option<&str>) -> Result<Self> {
-		let rgba = img.as_rgba8().expect("Image was not in valid RGBA8 format");
+		let rgba = img.to_rgba8();
 
         let dimensions = img.dimensions();
 
