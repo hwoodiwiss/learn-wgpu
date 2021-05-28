@@ -56,3 +56,25 @@ pub const PENTAGON_INDICES: &[u16] = &[
     1, 2, 4,
     2, 3, 4,
 ];
+
+
+pub const PLANE: &[Vertex] = &[
+    Vertex {
+        position: [0.0, 0.0, 0.0],
+        tex_coords: [0.0, 1.0],
+    },
+    Vertex {
+        position: [1.0, 0.0, 0.0],
+        tex_coords: [1.0, 1.0],
+    },
+    Vertex {
+        position: [1.0, 1.0, 0.0],
+        tex_coords: [1.0, 0.0],
+    },
+    Vertex {
+        position: [0.0, 1.0, 0.0],
+        tex_coords: [0.0, 0.0],
+    },
+];
+
+pub const PLANE_INDICES: &[u16] = &[0, 1, 2, 0, 2, 3];

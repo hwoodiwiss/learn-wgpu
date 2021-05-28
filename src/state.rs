@@ -1,3 +1,4 @@
+use crate::depth_pass::DepthPass;
 use crate::instance::Instance;
 use crate::camera::CameraController;
 use crate::instance::InstanceRaw;
@@ -46,8 +47,7 @@ pub struct State {
     camera_controller: CameraController,
     instances: Vec<Instance>,
     instance_buffer: wgpu::Buffer,
-    depth_texture: Texture,
-    depth_bind_group: wgpu::BindGroup,
+    depth_pass: DepthPass,
 }
 
 impl State {
@@ -226,47 +226,7 @@ impl State {
             flags: wgpu::ShaderFlags::all(),
         });
 
-        let depth_texture = Texture::create_depth_texture(&device, &sc_desc, "Depth Texture");
-
-        let depth_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Depth bind group layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Depth,
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler {
-                        filtering: true,
-                        comparison: true,
-                    },
-                    count: None,
-                }
-            ],
-        });
-
-        let depth_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Depth Bind Group"),
-            layout: &depth_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&depth_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&depth_texture.sampler),
-                }
-            ],
-        });
+        let depth_pass = DepthPass::new(&device, &sc_desc);
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -274,7 +234,6 @@ impl State {
                 bind_group_layouts: &[
                     &texture_bind_group_layout,
                     &uniform_bind_group_layout,
-                    &depth_bind_group_layout,
                     ],
                 push_constant_ranges: &[],
             });
@@ -343,8 +302,7 @@ impl State {
             camera_controller,
             instances,
             instance_buffer,
-            depth_texture,
-            depth_bind_group,
+            depth_pass,
         }
     }
 
@@ -353,7 +311,7 @@ impl State {
         self.sc_desc.width = self.size.width;
         self.sc_desc.height = self.size.height;
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-        self.depth_texture = Texture::create_depth_texture(&self.device, &self.sc_desc, "Depth Texture");
+        self.depth_pass.resize(&self.device, &self.sc_desc);
         self.camera.aspect = self.sc_desc.width as f32 / self.sc_desc.height as f32
     }
 
@@ -388,7 +346,7 @@ impl State {
                     },
                 }],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
+                    view: &self.depth_pass.texture.view,
                     depth_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: true,
@@ -402,7 +360,6 @@ impl State {
 
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);
-            render_pass.set_bind_group(2, &self.depth_bind_group, &[]);
 
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
@@ -412,6 +369,8 @@ impl State {
 
             render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
         }
+
+        self.depth_pass.render(&frame, &mut encoder);
 
         self.queue.submit(std::iter::once(encoder.finish()));
         Ok(())

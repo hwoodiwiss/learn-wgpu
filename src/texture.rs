@@ -1,4 +1,3 @@
-use std::default;
 
 use image::GenericImageView;
 use anyhow::*;
