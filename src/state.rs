@@ -208,7 +208,7 @@ impl State {
         });
 
         let resources_dir = std::path::Path::new(env!("OUT_DIR")).join("resources");
-        let obj_model = Model::load(&device, &queue, &&texture_bind_group_layout, resources_dir.join("cube/cube.obj")).unwrap();
+        let obj_model = Model::load(&device, &queue, &texture_bind_group_layout, resources_dir.join("cube/cube.obj")).unwrap();
 
         const SPACE_BETWEEN: f32 = 3.0;
         let instances = (0..INSTANCES_PER_ROW).flat_map(|z| {
@@ -375,9 +375,7 @@ impl State {
 
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
 
-            let mesh = &self.obj_model.meshes[0];
-            let material = &self.obj_model.materials[mesh.material];
-            render_pass.draw_mesh_instanced(mesh, material, 0..self.instances.len() as u32, &self.uniform_bind_group);
+            render_pass.draw_model_instanced(&self.obj_model, 0..self.instances.len() as u32, &self.uniform_bind_group);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));

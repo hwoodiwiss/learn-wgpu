@@ -112,11 +112,11 @@ impl CameraController {
 
 		let proportional_speed = ((forward.y * 6.283185) * (self.speed / 2.0)).abs();
 		if self.right_pressed {
-			camera.eye = camera.target - (forward + right * proportional_speed).normalize() * forward_mag;
+			camera.eye = camera.target - (forward + right * self.speed).normalize() * forward_mag;
 		}
 
 		if self.left_pressed {
-			camera.eye = camera.target - (forward - right * proportional_speed).normalize() * forward_mag;
+			camera.eye = camera.target - (forward - right * self.speed).normalize() * forward_mag;
 		}
 
 		if self.up_pressed {
