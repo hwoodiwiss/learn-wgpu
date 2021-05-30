@@ -24,10 +24,7 @@ struct VertexOutput {
 };
 
 [[stage(vertex)]]
-fn main(
-    model: VertexInput,
-    instance: InstanceInput,
-) -> VertexOutput {
+fn main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     let model_matrix = mat4x4<f32>(
         instance.model_matrix_0,
         instance.model_matrix_1,

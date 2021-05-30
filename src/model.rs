@@ -66,7 +66,8 @@ impl Model {
 	pub fn load<P: AsRef<Path>>(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, path: P) -> Result<Self> {
 		let (obj_models, obj_materials) = tobj::load_obj(path.as_ref(), &tobj::LoadOptions {
 		    triangulate: true,
-            ..Default::default()
+		    single_index: true,
+		    ..Default::default()
         })?;
         
         let obj_materials = obj_materials?;
