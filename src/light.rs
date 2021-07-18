@@ -6,3 +6,4 @@ pub struct Light {
 	pub _padding: f32,
 	pub colour: [f32; 3],
 }
+

@@ -9,7 +9,7 @@ use wgpu::util::DeviceExt;
 use winit::{event::WindowEvent, window::Window};
 
 use crate::camera::Camera;
-use crate::model::{self, ModelVertex};
+use crate::model::{self, DrawLight, ModelVertex};
 use crate::model::{DrawModel, Model};
 use crate::texture::{self, Texture};
 use crate::vertex::{Vertex, PENTAGON, PENTAGON_INDICES};
@@ -56,6 +56,7 @@ pub struct State {
     light: Light,
     light_buffer: wgpu::Buffer,
     light_bind_group: wgpu::BindGroup,
+    light_render_pipeline: wgpu::RenderPipeline,
 }
 
 impl State {
@@ -166,7 +167,7 @@ impl State {
                 label: Some("Uniform Bind Group Layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStage::VERTEX,
+                    visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -300,7 +301,7 @@ impl State {
         let render_pipeline = {
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Normal Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/basic.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
                 flags: wgpu::ShaderFlags::all(),
             };
             State::create_render_pipeline(
@@ -310,7 +311,28 @@ impl State {
                 Some(texture::Texture::DEPTH_FORMAT),
                 &[model::ModelVertex::desc(), InstanceRaw::desc()],
                 shader)
+        };
+
+        let light_render_pipeline = {
+            let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Light pipeline layout desc"),
+                bind_group_layouts: &[&uniform_bind_group_layout, &light_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+            let shader = wgpu::ShaderModuleDescriptor {
+                label: Some("Light Shader"),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/light.wgsl").into()),
+                flags: wgpu::ShaderFlags::all(),
             };
+
+            Self::create_render_pipeline(
+                &device,
+                &layout, 
+                sc_desc.format, 
+                Some(texture::Texture::DEPTH_FORMAT), 
+                &[model::ModelVertex::desc()], 
+                shader)
+        };
 
         Self {
             surface,
@@ -337,6 +359,7 @@ impl State {
             light,
             light_buffer,
             light_bind_group,
+            light_render_pipeline
         }
     }
 
@@ -456,8 +479,6 @@ impl State {
                 }),
             });
 
-            render_pass.set_pipeline(&self.render_pipeline);
-
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);
 
@@ -466,6 +487,13 @@ impl State {
 
             render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
 
+            render_pass.set_pipeline(&self.light_render_pipeline);
+            render_pass.draw_light_model(
+                &self.obj_model,
+                &self.uniform_bind_group,
+                &self.light_bind_group);
+
+            render_pass.set_pipeline(&self.render_pipeline);
             render_pass.draw_model_instanced(
                 &self.obj_model,
                 0..self.instances.len() as u32,
