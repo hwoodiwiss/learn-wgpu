@@ -13,6 +13,7 @@ mod camera;
 mod uniform;
 mod instance;
 mod model;
+mod light;
 
 use state::State;
 
