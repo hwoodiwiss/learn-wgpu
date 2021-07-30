@@ -62,7 +62,7 @@ fn main(model: VertexInput, instance: InstanceInput) -> VertexOutput {
     let world_normal = normalize(normal_matrix * model.normal);
     let world_tangent = normalize(normal_matrix * model.tangent);
     let world_bitangent = normalize(normal_matrix * model.bitangent);
-    let tangent_matrix - transpose(mat3x3<f32>(
+    let tangent_matrix = transpose(mat3x3<f32>(
         world_tangent,
         world_bitangent,
         world_normal,
@@ -92,12 +92,6 @@ var s_normal: sampler;
 
 [[stage(fragment)]]
 fn main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
-    let coordinate_system = mat3x3<f32>(
-        vec3(1, 0, 0), // x axis (right)
-        vec3(0, 1, 0), // y axis (up)
-        vec3(0, 0, 1)  // z axis (forward)
-    );
-
     let object_colour: vec4<f32> = textureSample(t_diffuse, s_diffuse, in.tex_coords);
     let object_normal: vec4<f32> = textureSample(t_normal, s_normal, in.tex_coords);
 
