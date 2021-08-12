@@ -1,4 +1,5 @@
 use futures::executor::block_on;
+use web_sys::HtmlCanvasElement;
 use winit::{
     dpi::PhysicalSize,
     event::*,
@@ -6,18 +7,9 @@ use winit::{
     window::WindowBuilder,
 };
 
-mod state;
-mod vertex;
-mod texture;
-mod camera;
-mod uniform;
-mod instance;
-mod model;
-mod light;
+use crate::state::State;
 
-use state::State;
-
-fn main() {
+pub(crate) fn main() {
     env_logger::init();
 
     let evt_loop = EventLoop::new();
@@ -28,6 +20,20 @@ fn main() {
         .with_inner_size(window_size)
         .build(&evt_loop)
         .expect("Failed to create window!");
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        use winit::platform::web::WindowExtWebSys;
+
+        let canvas = window.canvas();
+
+        let window = web_sys::window().unwrap();
+        let document = window.document().unwrap();
+        let body = document.body().unwrap();
+
+        body.append_child(&canvas)
+            .expect("Append canvas to HTML body");
+    }
 
     let mut render_state = block_on(State::new(&window));
     evt_loop.run(move |event, _, control_flow| match event {
