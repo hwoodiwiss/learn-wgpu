@@ -9,7 +9,7 @@ use winit::{
 
 use crate::state::State;
 
-pub(crate) fn main() {
+pub async fn main() {
     env_logger::init();
 
     let evt_loop = EventLoop::new();
@@ -35,7 +35,7 @@ pub(crate) fn main() {
             .expect("Append canvas to HTML body");
     }
 
-    let mut render_state = block_on(State::new(&window));
+    let mut render_state = State::new(&window).await;
     evt_loop.run(move |event, _, control_flow| match event {
         Event::WindowEvent {
             ref event,
