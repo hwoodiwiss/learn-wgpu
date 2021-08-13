@@ -11,6 +11,7 @@ mod state;
 mod texture;
 mod uniform;
 mod vertex;
+mod file_reader;
 
 #[wasm_bindgen]
 pub async fn wasm_main() {

@@ -237,7 +237,7 @@ impl State {
             &queue,
             &texture_bind_group_layout,
             resources_dir.join("cube/cube.obj"),
-        )
+        ).await
         .unwrap();
 
         const SPACE_BETWEEN: f32 = 3.0;

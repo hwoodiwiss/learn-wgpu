@@ -2,7 +2,10 @@ use std::{ops::Range, path::Path};
 
 use anyhow::*;
 use cgmath::{Vector2, Vector3};
+use futures::join;
+use tobj::MTLLoadResult;
 
+use crate::file_reader::WasmFileReader;
 use crate::vertex::Vertex;
 use crate::texture::Texture;
 
@@ -77,7 +80,18 @@ pub struct Model {
 }
 
 impl Model {
-	pub fn load<P: AsRef<Path>>(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, path: P) -> Result<Self> {
+	pub async fn load<P: AsRef<Path>>(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, path: P) -> Result<Self> {
+        let obj_data = WasmFileReader::read_file("resources/cube/cube.obj").await;
+        tobj::load_obj_buf(&mut obj_data[..], &tobj::LoadOptions {
+		    triangulate: true,
+		    single_index: true,
+		    ..Default::default()
+        },  move |path| {
+            let mtl_data_fut = WasmFileReader::read_file(            path.to_str().expect("msg"));
+            let mtl_data = join!(mtl_data_fut);
+            tobj::load_mtl_buf(&mut mtl_data)
+        });
+        panic!("{:?}", obj_data);
 		let (obj_models, obj_materials) = tobj::load_obj(path.as_ref(), &tobj::LoadOptions {
 		    triangulate: true,
 		    single_index: true,
