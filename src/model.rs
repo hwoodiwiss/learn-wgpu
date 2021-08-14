@@ -6,18 +6,17 @@ use futures::join;
 use tobj::MTLLoadResult;
 
 use crate::file_reader::WasmFileReader;
-use crate::vertex::Vertex;
 use crate::texture::Texture;
+use crate::vertex::Vertex;
 
 use wgpu::util::DeviceExt;
-
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ModelVertex {
-	position: [f32; 3],
-	tex_coords: [f32; 2],
-	normal: [f32; 3],
+    position: [f32; 3],
+    tex_coords: [f32; 2],
+    normal: [f32; 3],
     tangent: [f32; 3],
     bitangent: [f32; 3],
 }
@@ -52,66 +51,83 @@ impl Vertex for ModelVertex {
                     format: wgpu::VertexFormat::Float32x3,
                     offset: std::mem::size_of::<[f32; 11]>() as wgpu::BufferAddress,
                     shader_location: 4,
-                }
+                },
             ],
         }
     }
 }
 
 pub struct Material {
-	pub name: String,
-	pub diffuse_texture: Texture,
+    pub name: String,
+    pub diffuse_texture: Texture,
     pub normal_texture: Texture,
     pub bind_group: wgpu::BindGroup,
 }
 
-
 pub struct Mesh {
-	pub name: String,
-	pub vertex_buffer: wgpu::Buffer,
-	pub index_buffer: wgpu::Buffer,
-	pub num_elements: u32,
-	pub material: usize,
+    pub name: String,
+    pub vertex_buffer: wgpu::Buffer,
+    pub index_buffer: wgpu::Buffer,
+    pub num_elements: u32,
+    pub material: usize,
 }
 
 pub struct Model {
-	pub meshes: Vec<Mesh>,
-	pub materials: Vec<Material>,
+    pub meshes: Vec<Mesh>,
+    pub materials: Vec<Material>,
 }
 
 impl Model {
-	pub async fn load<P: AsRef<Path>>(device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, path: P) -> Result<Self> {
-        let obj_data = WasmFileReader::read_file("resources/cube/cube.obj").await;
-        tobj::load_obj_buf(&mut obj_data[..], &tobj::LoadOptions {
-		    triangulate: true,
-		    single_index: true,
-		    ..Default::default()
-        },  move |path| {
-            let mtl_data_fut = WasmFileReader::read_file(            path.to_str().expect("msg"));
-            let mtl_data = join!(mtl_data_fut);
-            tobj::load_mtl_buf(&mut mtl_data)
-        });
-        panic!("{:?}", obj_data);
-		let (obj_models, obj_materials) = tobj::load_obj(path.as_ref(), &tobj::LoadOptions {
-		    triangulate: true,
-		    single_index: true,
-		    ..Default::default()
-        })?;
-        
-        let obj_materials = obj_materials?;
+    pub async fn load<P: AsRef<Path>>(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layout: &wgpu::BindGroupLayout,
+        path: P,
+    ) -> Result<Self> {
+        let resource_base = "resources/cube/";
+        let obj_data = WasmFileReader::read_file(&(resource_base.to_owned() + "cube.obj")).await;
+        let (obj_models, obj_materials) = tobj::load_obj_buf_async(
+            &mut obj_data.as_slice(),
+            &tobj::LoadOptions {
+                triangulate: true,
+                single_index: true,
+                ..Default::default()
+            },
+            |path| {
+                Box::pin(async move {
+                    let mtl_data =
+                        WasmFileReader::read_file(&(resource_base.to_owned() + path.as_str()))
+                            .await;
+                    tobj::load_mtl_buf(&mut mtl_data.as_slice())
+                })
+            },
+        )
+        .await?;
 
-        let containing_folder = path.as_ref().parent().context("Directory has no parent")?;
+        let obj_materials = obj_materials?;
 
         let mut materials = Vec::new();
 
         for mat in obj_materials {
             let diffuse_path = mat.diffuse_texture;
-            let diffuse_texture = Texture::load(device, queue, containing_folder.join(diffuse_path), false)?;
+            let diffuse_texture = Texture::load(
+                device,
+                queue,
+                resource_base.to_owned() + diffuse_path.as_str(),
+                false,
+            )
+            .await?;
 
             let normal_path = mat.normal_texture;
-            let normal_texture = Texture::load(device, queue, containing_folder.join(normal_path), true)?;
+            let normal_texture = Texture::load(
+                device,
+                queue,
+                resource_base.to_owned() + normal_path.as_str(),
+                true,
+            )
+            .await?;
 
-            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor{
+            let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
                 layout,
                 entries: &[
@@ -140,7 +156,7 @@ impl Model {
                 normal_texture,
                 bind_group,
             })
-        };
+        }
 
         let mut meshes = Vec::new();
 
@@ -218,31 +234,67 @@ impl Model {
             });
         }
 
-        Ok(Self{
-            meshes,
-            materials,
-        })
-	}
+        Ok(Self { meshes, materials })
+    }
 }
 
 pub trait DrawModel<'a, 'b>
-where 'b: 'a,
+where
+    'b: 'a,
 {
-    fn draw_mesh(&mut self, mesh: &'b Mesh, material: &'b Material, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup);
-    fn draw_mesh_instanced(&mut self, mesh: &'b Mesh, material: &'b Material, instances: Range<u32>, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup);
+    fn draw_mesh(
+        &mut self,
+        mesh: &'b Mesh,
+        material: &'b Material,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    );
+    fn draw_mesh_instanced(
+        &mut self,
+        mesh: &'b Mesh,
+        material: &'b Material,
+        instances: Range<u32>,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    );
 
-    fn draw_model(&mut self, model: &'b Model, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup);
-    fn draw_model_instanced(&mut self, model: &'b Model, instances: Range<u32>, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup);
+    fn draw_model(
+        &mut self,
+        model: &'b Model,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    );
+    fn draw_model_instanced(
+        &mut self,
+        model: &'b Model,
+        instances: Range<u32>,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    );
 }
 
 impl<'a, 'b> DrawModel<'a, 'b> for wgpu::RenderPass<'a>
-where 'b: 'a
+where
+    'b: 'a,
 {
-    fn draw_mesh(&mut self, mesh: &'b Mesh, material: &'b Material, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup) {
+    fn draw_mesh(
+        &mut self,
+        mesh: &'b Mesh,
+        material: &'b Material,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    ) {
         self.draw_mesh_instanced(mesh, material, 0..1, uniforms, light);
     }
 
-    fn draw_mesh_instanced(&mut self, mesh: &'b Mesh, material: &'b Material, instances: Range<u32>, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup) {
+    fn draw_mesh_instanced(
+        &mut self,
+        mesh: &'b Mesh,
+        material: &'b Material,
+        instances: Range<u32>,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    ) {
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         self.set_bind_group(0, &material.bind_group, &[]);
@@ -251,11 +303,22 @@ where 'b: 'a
         self.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 
-    fn draw_model(&mut self, model: &'b Model, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup) {
+    fn draw_model(
+        &mut self,
+        model: &'b Model,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    ) {
         self.draw_model_instanced(model, 0..1, uniforms, light);
     }
 
-    fn draw_model_instanced(&mut self, model: &'b Model, instances: Range<u32>, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup) {
+    fn draw_model_instanced(
+        &mut self,
+        model: &'b Model,
+        instances: Range<u32>,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    ) {
         for mesh in &model.meshes {
             let material = &model.materials[mesh.material];
             self.draw_mesh_instanced(mesh, material, instances.clone(), uniforms, light);
@@ -264,23 +327,58 @@ where 'b: 'a
 }
 
 pub trait DrawLight<'a, 'b>
-where 'b: 'a,
+where
+    'b: 'a,
 {
-    fn draw_light_mesh(&mut self, mesh: &'b Mesh, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup);
-    fn draw_light_mesh_instanced(&mut self, mesh: &'b Mesh, instances: Range<u32>, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup);
+    fn draw_light_mesh(
+        &mut self,
+        mesh: &'b Mesh,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    );
+    fn draw_light_mesh_instanced(
+        &mut self,
+        mesh: &'b Mesh,
+        instances: Range<u32>,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    );
 
-    fn draw_light_model(&mut self, model: &'b Model, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup);
-    fn draw_light_model_instanced(&mut self, model: &'b Model, instances: Range<u32>, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup);
+    fn draw_light_model(
+        &mut self,
+        model: &'b Model,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    );
+    fn draw_light_model_instanced(
+        &mut self,
+        model: &'b Model,
+        instances: Range<u32>,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    );
 }
 
 impl<'a, 'b> DrawLight<'a, 'b> for wgpu::RenderPass<'a>
-where 'b: 'a,
- {
-    fn draw_light_mesh(&mut self, mesh: &'b Mesh, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup) {
+where
+    'b: 'a,
+{
+    fn draw_light_mesh(
+        &mut self,
+        mesh: &'b Mesh,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    ) {
         self.draw_light_mesh_instanced(mesh, 0..1, uniforms, light);
     }
 
-    fn draw_light_mesh_instanced(&mut self, mesh: &'b Mesh, instances: Range<u32>, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup) {
+    fn draw_light_mesh_instanced(
+        &mut self,
+        mesh: &'b Mesh,
+        instances: Range<u32>,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    ) {
         self.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
         self.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         self.set_bind_group(0, uniforms, &[]);
@@ -288,11 +386,22 @@ where 'b: 'a,
         self.draw_indexed(0..mesh.num_elements, 0, instances);
     }
 
-    fn draw_light_model(&mut self, model: &'b Model, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup) {
+    fn draw_light_model(
+        &mut self,
+        model: &'b Model,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    ) {
         self.draw_light_model_instanced(model, 0..1, uniforms, light);
     }
 
-    fn draw_light_model_instanced(&mut self, model: &'b Model, instances: Range<u32>, uniforms: &'b wgpu::BindGroup, light: &'b wgpu::BindGroup) {
+    fn draw_light_model_instanced(
+        &mut self,
+        model: &'b Model,
+        instances: Range<u32>,
+        uniforms: &'b wgpu::BindGroup,
+        light: &'b wgpu::BindGroup,
+    ) {
         for mesh in &model.meshes {
             self.draw_light_mesh_instanced(mesh, instances.clone(), uniforms, light);
         }

@@ -1,4 +1,5 @@
 use crate::camera::CameraController;
+use crate::file_reader::WasmFileReader;
 use crate::instance::InstanceRaw;
 use crate::uniform::Uniforms;
 use crate::{instance::Instance, light::Light};
@@ -237,7 +238,8 @@ impl State {
             &queue,
             &texture_bind_group_layout,
             resources_dir.join("cube/cube.obj"),
-        ).await
+        )
+        .await
         .unwrap();
 
         const SPACE_BETWEEN: f32 = 3.0;
@@ -279,13 +281,18 @@ impl State {
         });
 
         let depth_texture = Texture::create_depth_texture(&device, &sc_desc, "Depth Texture");
+        let shader_buffer = WasmFileReader::read_file("shaders/shader.wgsl").await;
+        let shader_str =
+            std::str::from_utf8(shader_buffer.as_slice()).expect("Failed to load shader");
 
+        panic!("{}", shader_str.to_owned());
         let render_pipeline = {
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Normal Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shader.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(shader_str.into()),
                 flags: wgpu::ShaderFlags::all(),
             };
+
             State::create_render_pipeline(
                 &device,
                 &render_pipeline_layout,
@@ -302,9 +309,13 @@ impl State {
                 bind_group_layouts: &[&uniform_bind_group_layout, &light_bind_group_layout],
                 push_constant_ranges: &[],
             });
+            let shader_buffer = WasmFileReader::read_file("shaders/light.wgsl").await;
+            let shader_str =
+                std::str::from_utf8(shader_buffer.as_slice()).expect("Failed to load shader");
+            panic!("{}", shader_str.to_owned());
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Light Shader"),
-                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/light.wgsl").into()),
+                source: wgpu::ShaderSource::Wgsl(shader_str.into()),
                 flags: wgpu::ShaderFlags::all(),
             };
 

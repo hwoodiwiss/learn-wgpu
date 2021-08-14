@@ -3,6 +3,8 @@ use std::path::Path;
 use anyhow::*;
 use image::GenericImageView;
 
+use crate::file_reader::WasmFileReader;
+
 pub struct Texture {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -69,16 +71,16 @@ impl Texture {
         Self::from_image(device, queue, &img, Some(label), is_normal_map)
     }
 
-    pub fn load<P: AsRef<Path>>(
+    pub async fn load(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        path: P,
+        path: String,
         is_normal_map: bool,
     ) -> Result<Self> {
-        let path_copy = path.as_ref().to_path_buf();
-        let label = path_copy.to_str();
+        let label = Some(path.as_str());
 
-        let img = image::open(path)?;
+        let img_buffer = WasmFileReader::read_file(path.as_str()).await;
+        let img = image::load_from_memory(&img_buffer)?;
         Self::from_image(device, queue, &img, label, is_normal_map)
     }
 
