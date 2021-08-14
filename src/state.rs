@@ -6,6 +6,7 @@ use crate::{instance::Instance, light::Light};
 use cgmath::*;
 
 use wgpu::util::DeviceExt;
+use wgpu::PowerPreference;
 use winit::{event::WindowEvent, window::Window};
 
 use crate::camera::Camera;
@@ -64,7 +65,7 @@ impl State {
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 compatible_surface: Some(&surface),
-                power_preference: wgpu::PowerPreference::HighPerformance,
+                power_preference: PowerPreference::HighPerformance,
             })
             .await
             .expect("Could not create adapter instance!");
@@ -285,7 +286,6 @@ impl State {
         let shader_str =
             std::str::from_utf8(shader_buffer.as_slice()).expect("Failed to load shader");
 
-        panic!("{}", shader_str.to_owned());
         let render_pipeline = {
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Normal Shader"),
@@ -312,7 +312,7 @@ impl State {
             let shader_buffer = WasmFileReader::read_file("shaders/light.wgsl").await;
             let shader_str =
                 std::str::from_utf8(shader_buffer.as_slice()).expect("Failed to load shader");
-            panic!("{}", shader_str.to_owned());
+
             let shader = wgpu::ShaderModuleDescriptor {
                 label: Some("Light Shader"),
                 source: wgpu::ShaderSource::Wgsl(shader_str.into()),
