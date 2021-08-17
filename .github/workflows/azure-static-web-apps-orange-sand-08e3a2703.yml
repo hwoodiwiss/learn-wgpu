@@ -19,7 +19,7 @@ jobs:
         with:
           submodules: true
       - name: Install Wasm-Pack
-        run: cargo install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Build Wasm Project
         run: RUSTFLAGS=--cfg=web_sys_unstable_apis wasm-pack build
       - name: Build Web Project
