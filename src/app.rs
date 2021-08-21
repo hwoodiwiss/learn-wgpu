@@ -27,9 +27,9 @@ pub async fn main() {
 
         let canvas = window.canvas();
 
-        let window = web_sys::window().unwrap();
-        let document = window.document().unwrap();
-        let body = document.body().unwrap();
+        let window = web_sys::window().expect("Could not get window reference");
+        let document = window.document().expect("Could not get document reference");
+        let body = document.body().expect("Could not get body reference");
 
         body.append_child(&canvas)
             .expect("Append canvas to HTML body");
