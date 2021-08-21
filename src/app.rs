@@ -61,9 +61,9 @@ pub async fn main() {
             match render_state.render() {
                 Ok(_) => {}
                 //On swapchain lost, recreate
-                Err(wgpu::SwapChainError::Lost) => render_state.resize(render_state.size),
+                Err(wgpu::SurfaceError::Lost) => render_state.resize(render_state.size),
                 // On OOM Exit
-                Err(wgpu::SwapChainError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+                Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                 Err(e) => eprintln!("{:?}", e),
             }
         }
