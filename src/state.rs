@@ -85,7 +85,7 @@ impl State {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface
                 .get_preferred_format(&adapter)
-                .expect("Could not get swapchain format!"),
+                .expect("Could not get surface format!"),
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Fifo,
