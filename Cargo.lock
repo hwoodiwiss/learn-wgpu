@@ -1727,9 +1727,9 @@ dependencies = [
 
 [[package]]
 name = "web-sys"
-version = "0.3.51"
+version = "0.3.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e828417b379f3df7111d3a2a9e5753706cae29c41f7c4029ee9fd77f3e09e582"
+checksum = "224b2f6b67919060055ef1a67807367c2066ed520c3862cc013d26cf893a783c"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -1738,8 +1738,7 @@ dependencies = [
 [[package]]
 name = "wgpu"
 version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d92a4fe73b1e7d7ef99938dacd49258cbf1ad87cdb5bf6efa20c27447442b45"
+source = "git+https://github.com/hwoodiwiss/wgpu?branch=work-with-latest-nightly-plz#a9bafdd19880f1591e10d196f99e46b23bee0715"
 dependencies = [
  "arrayvec",
  "js-sys",
@@ -1758,8 +1757,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c035607b0c83c0d2c0afa84e786dea6b16ff6cb70dd986b7e33913be74d2a2a"
+source = "git+https://github.com/hwoodiwiss/wgpu?branch=work-with-latest-nightly-plz#a9bafdd19880f1591e10d196f99e46b23bee0715"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -1780,8 +1778,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90b2512ec9e1db82d0c8bc5fab77a4af507bc3723999681a46ff8a8a31fa5e94"
+source = "git+https://github.com/hwoodiwiss/wgpu?branch=work-with-latest-nightly-plz#a9bafdd19880f1591e10d196f99e46b23bee0715"
 dependencies = [
  "arrayvec",
  "ash",
@@ -1814,8 +1811,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25feb2fbf24ab3219a9f10890ceb8e1ef02b13314ed89d64a9ae99dcad883e18"
+source = "git+https://github.com/hwoodiwiss/wgpu?branch=work-with-latest-nightly-plz#a9bafdd19880f1591e10d196f99e46b23bee0715"
 dependencies = [
  "bitflags",
 ]
