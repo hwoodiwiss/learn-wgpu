@@ -91,6 +91,8 @@ impl State {
             present_mode: wgpu::PresentMode::Fifo,
         };
 
+        surface.configure(&device, &surface_config);
+
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Texure bind group layout"),
